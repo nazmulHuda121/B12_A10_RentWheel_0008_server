@@ -30,12 +30,26 @@ async function run() {
 
     // create Databbase && Collection
     const db = client.db('rentDB');
-    const productsCollection = db.collection('products');
+    const productsCollection = db.collection('cars');
 
-    // Create a product collection
-    app.post('/products', async (req, res) => {
+    // Create a cars collection
+    app.post('/cars', async (req, res) => {
       const newProduct = req.body;
       const result = await productsCollection.insertOne(newProduct);
+      res.send(result);
+    });
+
+    // get cars / find all product
+    app.get('/cars', async (req, res) => {
+      const cursor = productsCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // Featured cars / products
+    app.get('/featured-cars', async (req, res) => {
+      const cursor = productsCollection.find().sort({ rentPrice: -1 }).limit(6);
+      const result = await cursor.toArray();
       res.send(result);
     });
 
