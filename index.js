@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -28,27 +28,49 @@ async function run() {
     // create client
     await client.connect();
 
-    // create Databbase && Collection
+    // create Database && Collection
     const db = client.db('rentDB');
-    const productsCollection = db.collection('cars');
+    const carsCollection = db.collection('cars');
 
     // Create a cars collection
     app.post('/cars', async (req, res) => {
       const newProduct = req.body;
-      const result = await productsCollection.insertOne(newProduct);
+      const result = await carsCollection.insertOne(newProduct);
       res.send(result);
     });
 
-    // get cars / find all product
+    // get cars / find all cars
     app.get('/cars', async (req, res) => {
-      const cursor = productsCollection.find();
+      const cursor = carsCollection.find();
       const result = await cursor.toArray();
       res.send(result);
     });
 
-    // Featured cars / products
+    // get single cars details / specific car
+    app.get('/cars/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = new ObjectId(id);
+      const result = await carsCollection.findOne(query);
+      res.send(result);
+    });
+
+    // Update car status
+    app.patch('/cars/:id/status', async (req, res) => {
+      const id = req.params.id;
+      const { status } = req.body;
+
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: { status: status },
+      };
+
+      const result = await carsCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // Featured cars
     app.get('/featured-cars', async (req, res) => {
-      const cursor = productsCollection.find().sort({ rentPrice: -1 }).limit(6);
+      const cursor = carsCollection.find().sort({ rentPrice: -1 }).limit(6);
       const result = await cursor.toArray();
       res.send(result);
     });
