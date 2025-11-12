@@ -31,6 +31,7 @@ async function run() {
     // create Database && Collection
     const db = client.db('rentDB');
     const carsCollection = db.collection('cars');
+    const bookingsCollection = db.collection('bookings');
 
     // Create a cars collection
     app.post('/cars', async (req, res) => {
@@ -42,6 +43,14 @@ async function run() {
     // get cars / find all cars
     app.get('/cars', async (req, res) => {
       const cursor = carsCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // get browse cars / all users browse car
+    app.get('/browse-car', async (req, res) => {
+      const query = { status: 'Available' };
+      const cursor = carsCollection.find(query).sort({ _id: -1 });
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -75,6 +84,32 @@ async function run() {
       res.send(result);
     });
 
+    // Delete single car from my listing
+    app.delete('/cars/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await carsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //---------------------------------########---------------------------------//
+
+    // Create a booking
+    app.post('/bookings', async (req, res) => {
+      const newBooking = req.body;
+      const result = await bookingsCollection.insertOne(newBooking);
+      res.send(result);
+    });
+
+    // Get all bookings by user
+    app.get('/bookings/:userEmail', async (req, res) => {
+      const userEmail = req.params.userEmail;
+      const bookings = await db
+        .collection('bookings')
+        .find({ userEmail })
+        .toArray();
+      res.send(bookings);
+    });
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 });
     console.log(
