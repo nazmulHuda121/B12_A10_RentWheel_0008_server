@@ -8,6 +8,12 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Tokenization
+const logger = (req, res, next) => {
+  console.log('Logging info..');
+  next();
+};
+
 const uri = `mongodb+srv://RentWheelDB:peQnpx1z6RGq3THZ@cluster0.wbbieaf.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -40,7 +46,13 @@ async function run() {
     });
 
     // get cars / find all cars
-    app.get('/cars', async (req, res) => {
+    app.get('/cars', logger, async (req, res) => {
+      //   console.log('headers', req.headers);
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.providerEmail = email;
+      }
       const cursor = carsCollection.find();
       const result = await cursor.toArray();
       res.send(result);
