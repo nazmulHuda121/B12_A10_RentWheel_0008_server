@@ -2,11 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
+const admin = require('firebase-admin');
 const port = process.env.PORT || 3000;
 
-var admin = require('firebase-admin');
-
-var serviceAccount = require('path/to/serviceAccountKey.json');
+const serviceAccount = require('./rent-wheels-auth-firebase-adminsdk.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -22,7 +21,7 @@ const logger = (req, res, next) => {
   next();
 };
 
-const verifyFireBaseToken = (req, res, next) => {
+const verifyFireBaseToken = async (req, res, next) => {
   console.log('in the verify middleware', req.headers.authorization);
   if (!req.headers.authorization) {
     //do not allow to go
@@ -33,8 +32,15 @@ const verifyFireBaseToken = (req, res, next) => {
     return res.status(401).send({ message: 'unauthorize access' });
   }
 
+  try {
+    const userInfo = await admin.auth().verifyIdToken(token);
+    req.token_email = userInfo.email;
+    console.log(userInfo);
+    next();
+  } catch {
+    return res.status(401).send({ message: 'unauthorize access' });
+  }
   // verify token
-  next();
 };
 
 const uri = `mongodb+srv://RentWheelDB:peQnpx1z6RGq3THZ@cluster0.wbbieaf.mongodb.net/?appName=Cluster0`;
@@ -70,10 +76,13 @@ async function run() {
 
     // get cars / find all cars
     app.get('/cars', logger, verifyFireBaseToken, async (req, res) => {
-      //   console.log('headers', req.headers);
+      console.log('headers', req.headers);
       const email = req.query.email;
       const query = {};
       if (email) {
+        if (email !== req.token_email) {
+          return res.status(403).send({ message: 'Forbidden access' });
+        }
         query.providerEmail = email;
       }
       const cursor = carsCollection.find();
