@@ -4,6 +4,14 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 3000;
 
+var admin = require('firebase-admin');
+
+var serviceAccount = require('path/to/serviceAccountKey.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -11,6 +19,21 @@ app.use(express.json());
 // Tokenization
 const logger = (req, res, next) => {
   console.log('Logging info..');
+  next();
+};
+
+const verifyFireBaseToken = (req, res, next) => {
+  console.log('in the verify middleware', req.headers.authorization);
+  if (!req.headers.authorization) {
+    //do not allow to go
+    return res.status(401).send({ message: 'unauthorize access' });
+  }
+  const token = req.headers.authorization.split(' ')[1];
+  if (!token) {
+    return res.status(401).send({ message: 'unauthorize access' });
+  }
+
+  // verify token
   next();
 };
 
@@ -46,7 +69,7 @@ async function run() {
     });
 
     // get cars / find all cars
-    app.get('/cars', logger, async (req, res) => {
+    app.get('/cars', logger, verifyFireBaseToken, async (req, res) => {
       //   console.log('headers', req.headers);
       const email = req.query.email;
       const query = {};
