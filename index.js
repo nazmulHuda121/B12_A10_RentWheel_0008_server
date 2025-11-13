@@ -1,66 +1,50 @@
-// Load environment variables from .env file
 require('dotenv').config();
-
-// Import dependencies
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const admin = require('firebase-admin');
-
 const app = express();
+const admin = require('firebase-admin');
 const port = process.env.PORT || 3000;
 
-// Initialize Firebase Admin SDK using service account
 const serviceAccount = require('./rent-wheels-auth-firebase-adminsdk.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-// Middleware setup
-app.use(
-  cors({
-    origin: ['http://localhost:5173'],
-    credentials: true,
-  })
-);
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// Logger middleware
+// Tokenization
 const logger = (req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  console.log('Logging info..');
   next();
 };
 
-// Firebase token verification middleware
 const verifyFireBaseToken = async (req, res, next) => {
-  console.log('Verifying Firebase token...');
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).send({ message: 'Unauthorized: Missing token' });
+  console.log('in the verify middleware', req.headers.authorization);
+  if (!req.headers.authorization) {
+    //do not allow to go
+    return res.status(401).send({ message: 'unauthorize access' });
   }
-
-  const token = authHeader.split(' ')[1];
+  const token = req.headers.authorization.split(' ')[1];
   if (!token) {
-    return res
-      .status(401)
-      .send({ message: 'Unauthorized: Invalid token format' });
+    return res.status(401).send({ message: 'unauthorize access' });
   }
 
   try {
-    const decodedUser = await admin.auth().verifyIdToken(token);
-    req.token_email = decodedUser.email;
-    console.log('Token verified for:', decodedUser.email);
+    const userInfo = await admin.auth().verifyIdToken(token);
+    req.token_email = userInfo.email;
+    console.log(userInfo);
     next();
-  } catch (error) {
-    console.error('Token verification failed:', error.message);
-    return res.status(401).send({ message: 'Unauthorized: Token invalid' });
+  } catch {
+    return res.status(401).send({ message: 'unauthorize access' });
   }
+  // verify token
 };
 
-// MongoDB connection
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wbbieaf.mongodb.net/?retryWrites=true&w=majority`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wbbieaf.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -70,57 +54,56 @@ const client = new MongoClient(uri, {
   },
 });
 
-// Base route
 app.get('/', (req, res) => {
-  res.send('RentWheels Server is Running!');
+  res.send('RentWheels Category 0008 is running');
 });
 
-// Main server function
 async function run() {
   try {
+    // create client
+    // await client.connect();
+
+    // create Database && Collection
     const db = client.db('rentDB');
     const carsCollection = db.collection('cars');
     const bookingsCollection = db.collection('bookings');
 
-    // -------------------  Car Routes -------------------
-
-    // Create new car
+    // Create a cars collection
     app.post('/cars', async (req, res) => {
-      const newCar = req.body;
-      const result = await carsCollection.insertOne(newCar);
+      const newProduct = req.body;
+      const result = await carsCollection.insertOne(newProduct);
       res.send(result);
     });
 
-    // Get all cars (with optional provider email filter)
+    // get cars / find all cars
     app.get('/cars', logger, verifyFireBaseToken, async (req, res) => {
+      console.log('headers', req.headers);
       const email = req.query.email;
       const query = {};
-
       if (email) {
         if (email !== req.token_email) {
           return res.status(403).send({ message: 'Forbidden access' });
         }
         query.providerEmail = email;
       }
-
-      const result = await carsCollection.find(query).toArray();
+      const cursor = carsCollection.find();
+      const result = await cursor.toArray();
       res.send(result);
     });
 
-    // Get only "Available" cars for browsing
+    // get browse cars / all users browse car
     app.get('/browse-car', async (req, res) => {
       const query = { status: 'Available' };
-      const result = await carsCollection
-        .find(query)
-        .sort({ _id: -1 })
-        .toArray();
+      const cursor = carsCollection.find(query).sort({ _id: -1 });
+      const result = await cursor.toArray();
       res.send(result);
     });
 
-    // Get a single car by ID
+    // get single cars details / specific car
     app.get('/cars/:id', async (req, res) => {
       const id = req.params.id;
-      const result = await carsCollection.findOne({ _id: new ObjectId(id) });
+      const query = new ObjectId(id);
+      const result = await carsCollection.findOne(query);
       res.send(result);
     });
 
@@ -129,34 +112,40 @@ async function run() {
       const id = req.params.id;
       const { status } = req.body;
 
-      const result = await carsCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { status } }
-      );
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: { status: status },
+      };
+
+      const result = await carsCollection.updateOne(query, updateDoc);
       res.send(result);
     });
 
-    // Featured cars (Top 6 by price)
+    // Featured cars
     app.get('/featured-cars', async (req, res) => {
-      const result = await carsCollection
-        .find()
-        .sort({ rentPrice: -1 })
-        .limit(6)
-        .toArray();
+      const cursor = carsCollection.find().sort({ rentPrice: -1 }).limit(6);
+      const result = await cursor.toArray();
       res.send(result);
     });
 
-    // Update a car
+    // Delete single car from my listing
+    app.delete('/cars/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await carsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // Update car by ID
     app.put('/cars/:id', async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = { $set: updatedData };
 
-      const result = await carsCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updatedData }
-      );
+      const result = await carsCollection.updateOne(query, updateDoc);
 
-      // Update related bookings if exist
+      // also update related booking if exists
       await bookingsCollection.updateMany(
         { carId: id },
         { $set: { status: updatedData.status } }
@@ -165,14 +154,7 @@ async function run() {
       res.send(result);
     });
 
-    // Delete car
-    app.delete('/cars/:id', async (req, res) => {
-      const id = req.params.id;
-      const result = await carsCollection.deleteOne({ _id: new ObjectId(id) });
-      res.send(result);
-    });
-
-    // -------------------  Booking Routes -------------------
+    //---------------------------------########---------------------------------//
 
     // Create a booking
     app.post('/bookings', async (req, res) => {
@@ -181,28 +163,33 @@ async function run() {
       res.send(result);
     });
 
-    // Get all bookings
+    // get the booking car
     app.get('/bookings', async (req, res) => {
-      const result = await bookingsCollection.find().toArray();
+      const cursor = bookingsCollection.find();
+      const result = await cursor.toArray();
       res.send(result);
     });
 
-    // Get bookings by user
+    // Get all bookings by user
     app.get('/bookings/:userEmail', async (req, res) => {
       const userEmail = req.params.userEmail;
-      const bookings = await bookingsCollection.find({ userEmail }).toArray();
+      const bookings = await db
+        .collection('bookings')
+        .find({ userEmail })
+        .toArray();
       res.send(bookings);
     });
-
-    console.log('MongoDB connected successfully!');
-  } catch (error) {
-    console.error('Error connecting to DB:', error.message);
+    // Send a ping to confirm a successful connection
+    // await client.db('admin').command({ ping: 1 });
+    console.log(
+      'Pinged your deployment. You successfully connected to MongoDB!'
+    );
+  } finally {
+    // Ensures that the client will close when you finish/error
   }
 }
-
 run().catch(console.dir);
 
-// Start server
 app.listen(port, () => {
-  console.log(`RentWheels Server running on port: ${port}`);
+  console.log(`RentWheels server is running on port: ${port}`);
 });
