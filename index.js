@@ -76,14 +76,11 @@ async function run() {
     });
 
     // get cars / find all cars
-    app.get('/cars', logger, verifyFireBaseToken, async (req, res) => {
+    app.get('/cars', async (req, res) => {
       console.log('headers', req.headers);
       const email = req.query.email;
       const query = {};
       if (email) {
-        if (email !== req.token_email) {
-          return res.status(403).send({ message: 'Forbidden access' });
-        }
         query.providerEmail = email;
       }
       const cursor = carsCollection.find();
