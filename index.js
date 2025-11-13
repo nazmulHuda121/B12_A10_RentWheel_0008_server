@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -43,7 +44,7 @@ const verifyFireBaseToken = async (req, res, next) => {
   // verify token
 };
 
-const uri = `mongodb+srv://RentWheelDB:peQnpx1z6RGq3THZ@cluster0.wbbieaf.mongodb.net/?appName=Cluster0`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wbbieaf.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -60,7 +61,7 @@ app.get('/', (req, res) => {
 async function run() {
   try {
     // create client
-    await client.connect();
+    // await client.connect();
 
     // create Database && Collection
     const db = client.db('rentDB');
