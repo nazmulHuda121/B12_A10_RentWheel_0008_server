@@ -8,8 +8,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const uri =
-  'mongodb+srv://RentWheelDB:peQnpx1z6RGq3THZ@cluster0.wbbieaf.mongodb.net/?appName=Cluster0';
+const uri = `mongodb+srv://RentWheelDB:peQnpx1z6RGq3THZ@cluster0.wbbieaf.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -92,12 +91,37 @@ async function run() {
       res.send(result);
     });
 
+    // Update car by ID
+    app.put('/cars/:id', async (req, res) => {
+      const id = req.params.id;
+      const updatedData = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = { $set: updatedData };
+
+      const result = await carsCollection.updateOne(query, updateDoc);
+
+      // also update related booking if exists
+      await bookingsCollection.updateMany(
+        { carId: id },
+        { $set: { status: updatedData.status } }
+      );
+
+      res.send(result);
+    });
+
     //---------------------------------########---------------------------------//
 
     // Create a booking
     app.post('/bookings', async (req, res) => {
       const newBooking = req.body;
       const result = await bookingsCollection.insertOne(newBooking);
+      res.send(result);
+    });
+
+    // get the booking car
+    app.get('/bookings', async (req, res) => {
+      const cursor = bookingsCollection.find();
+      const result = await cursor.toArray();
       res.send(result);
     });
 
@@ -111,7 +135,7 @@ async function run() {
       res.send(bookings);
     });
     // Send a ping to confirm a successful connection
-    await client.db('admin').command({ ping: 1 });
+    // await client.db('admin').command({ ping: 1 });
     console.log(
       'Pinged your deployment. You successfully connected to MongoDB!'
     );
